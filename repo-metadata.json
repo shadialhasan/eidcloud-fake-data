@@ -1,0 +1,12 @@
+{
+  "description": "High-velocity relational-aware synthetic data generator maintaining foreign key integrity in pure PHP",
+  "topics": [
+    "eidcloud",
+    "synthetic-data",
+    "fake-data-generator",
+    "relational-data",
+    "database-seeder",
+    "sql-generator",
+    "php8"
+  ]
+}

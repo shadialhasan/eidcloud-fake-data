@@ -1,0 +1,11 @@
+/vendor/
+composer.lock
+*.log
+.phpunit.result.cache
+.env
+.DS_Store
+Thumbs.db
+data/
+output/
+seed.sql
+*.tmp

@@ -1,0 +1,26 @@
+{
+  "tables": {
+    "users": {
+      "count": 50,
+      "columns": {
+        "id": { "type": "int", "primary_key": true, "auto_increment": true },
+        "name": { "type": "string", "provider": "arabic_name" },
+        "email": { "type": "string", "provider": "email" },
+        "phone": { "type": "string", "provider": "arabic_phone" },
+        "vat_number": { "type": "string", "provider": "zatca_tax_number" },
+        "iban": { "type": "string", "provider": "saudi_iban" }
+      }
+    },
+    "invoices": {
+      "count": 100,
+      "columns": {
+        "id": { "type": "int", "primary_key": true, "auto_increment": true },
+        "user_id": { "type": "int", "foreign_table": "users", "foreign_column": "id" },
+        "invoice_uuid": { "type": "string", "provider": "uuid" },
+        "amount": { "type": "decimal", "provider": "amount", "options": { "min": 100, "max": 5000 } },
+        "currency": { "type": "string", "provider": "currency" },
+        "status": { "type": "string", "provider": "status" }
+      }
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "eidcloud/fake-data",
+  "description": "High-velocity relational-aware synthetic data generator maintaining foreign key integrity in pure PHP",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Eng. MHD. Shadi AL-Hasan",
+      "email": "shadi@eidcloud.com",
+      "role": "Lead Architect & Developer"
+    }
+  ],
+  "require": {
+    "php": ">=8.2.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "EidCloud\\FakeData\\": "src/"
+    }
+  },
+  "bin": [
+    "bin/eidcloud-fake"
+  ],
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

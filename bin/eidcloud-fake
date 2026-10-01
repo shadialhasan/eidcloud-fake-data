@@ -1,0 +1,156 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require_once __DIR__ . '/../src/autoload.php';
+
+use EidCloud\FakeData\FakeDataGenerator;
+use EidCloud\FakeData\Generators\CsvStream;
+use EidCloud\FakeData\Generators\NdjsonStream;
+use EidCloud\FakeData\Generators\SqlInsertStream;
+use EidCloud\FakeData\Schema\DatabaseSchema;
+use EidCloud\FakeData\Schema\DdlParser;
+use EidCloud\FakeData\Schema\JsonSchemaParser;
+
+$banner = <<<TXT
+  ==============================================================
+  🎲 eidcloud-fake-data CLI v1.0.0
+  High-Velocity Relational-Aware Synthetic Data Generator
+  Author: Eng. MHD. Shadi AL-Hasan <shadi@eidcloud.com>
+  ==============================================================
+TXT;
+
+function showHelp(): void
+{
+    global $banner;
+    echo $banner . "\n\n";
+    echo "Usage:\n";
+    echo "  php bin/eidcloud-fake <command> <schema-file> [options]\n\n";
+    echo "Commands:\n";
+    echo "  generate <schema.json>   Generate synthetic relational data from JSON schema.\n";
+    echo "  ddl <schema.sql>         Generate synthetic relational data directly from SQL DDL.\n";
+    echo "  help, -h, --help         Show this help screen.\n\n";
+    echo "Options:\n";
+    echo "  --count=<N>              Number of records to generate per table (default: schema count or 100).\n";
+    echo "  --format=<fmt>           Output format: 'sql', 'csv', 'ndjson' (default: sql).\n";
+    echo "  --out=<path>             Output file path (for sql format, default: stdout).\n";
+    echo "  --dir=<path>             Output directory (for csv and ndjson formats, default: ./data).\n";
+    echo "  --locale=<loc>           Data locale: 'mixed', 'ar', 'en' (default: mixed).\n";
+    echo "  --batch-size=<N>         Batch size for SQL INSERT multi-rows (default: 500).\n\n";
+    echo "Examples:\n";
+    echo "  php bin/eidcloud-fake generate schema.json --count=10000 --format=sql --out=seed.sql\n";
+    echo "  php bin/eidcloud-fake ddl schema.sql --count=5000 --format=csv --dir=./data/\n";
+    echo "  php bin/eidcloud-fake ddl schema.sql --count=20000 --format=ndjson --dir=./export/\n";
+    echo "\n";
+    exit(0);
+}
+
+// Parse CLI Arguments
+$args = array_slice($argv, 1);
+
+if (empty($args) || in_array('-h', $args, true) || in_array('--help', $args, true) || $args[0] === 'help') {
+    showHelp();
+}
+
+$command = $args[0];
+$schemaFile = $args[1] ?? null;
+
+if (!in_array($command, ['generate', 'ddl'], true) || !$schemaFile) {
+    fwrite(STDERR, "Error: Invalid command or missing schema file.\n\n");
+    showHelp();
+}
+
+if (!file_exists($schemaFile)) {
+    fwrite(STDERR, "Error: File not found: {$schemaFile}\n");
+    exit(1);
+}
+
+// Parse Options
+$options = [
+    'count' => null,
+    'format' => 'sql',
+    'out' => null,
+    'dir' => './data',
+    'locale' => 'mixed',
+    'batch-size' => 500
+];
+
+foreach (array_slice($args, 2) as $opt) {
+    if (str_starts_with($opt, '--')) {
+        $parts = explode('=', substr($opt, 2), 2);
+        $key = strtolower($parts[0]);
+        $val = $parts[1] ?? true;
+        $options[$key] = $val;
+    }
+}
+
+$count = $options['count'] !== null ? (int) $options['count'] : null;
+$format = strtolower((string) $options['format']);
+$out = $options['out'];
+$dir = (string) $options['dir'];
+$locale = (string) $options['locale'];
+$batchSize = (int) $options['batch-size'];
+
+echo $banner . "\n\n";
+$schemaContent = file_get_contents($schemaFile);
+
+echo "⚙️  Parsing schema: {$schemaFile} ...\n";
+$startTime = microtime(true);
+
+try {
+    if ($command === 'generate') {
+        $parser = new JsonSchemaParser();
+        $schema = $parser->parse($schemaContent);
+    } else {
+        $parser = new DdlParser();
+        $schema = $parser->parse($schemaContent);
+    }
+} catch (Throwable $e) {
+    fwrite(STDERR, "Error parsing schema: " . $e->getMessage() . "\n");
+    exit(1);
+}
+
+$tableCount = count($schema->getTables());
+echo "✅ Schema parsed successfully: {$tableCount} table(s) detected.\n";
+
+// Setup Stream
+switch ($format) {
+    case 'csv':
+        $stream = new CsvStream($dir);
+        echo "📁 Streaming CSV files to directory: {$dir}\n";
+        break;
+    case 'ndjson':
+    case 'jsonl':
+        $stream = new NdjsonStream($dir);
+        echo "📁 Streaming NDJSON files to directory: {$dir}\n";
+        break;
+    case 'sql':
+    default:
+        $target = $out ? $out : STDOUT;
+        $stream = new SqlInsertStream($target, $batchSize);
+        if ($out) {
+            echo "📄 Streaming SQL INSERT statements to: {$out}\n";
+        }
+        break;
+}
+
+$generator = new FakeDataGenerator($locale);
+echo "🚀 Generating synthetic records maintaining FK referential integrity...\n";
+
+$progress = static function (string $tableName, int $current, int $total): void {
+    if (PHP_SAPI === 'cli' && defined('STDERR')) {
+        fwrite(STDERR, sprintf("\r  ⏳ [%s] %d / %d records generated...", $tableName, $current, $total));
+        if ($current >= $total) {
+            fwrite(STDERR, "\n");
+        }
+    }
+};
+
+$genStart = microtime(true);
+$generator->generate($schema, $stream, $count, $progress);
+$genDuration = round(microtime(true) - $genStart, 3);
+
+echo "\n🎉 Finished successfully in {$genDuration}s!\n";
+echo "Memory peak usage: " . round(memory_get_peak_usage(true) / 1024 / 1024, 2) . " MB\n";
+exit(0);
